@@ -242,6 +242,22 @@ class EvolutionSession:
                 rejected += 1
         return rejected
 
+    def _recorded_round(self, round_number: int) -> Optional[Dict[str, Any]]:
+        """Return the ``rounds.jsonl`` entry of ``round_number``, if recorded."""
+        path = self.run_dir / "rounds.jsonl"
+        if not path.is_file():
+            return None
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if entry.get("round") == round_number:
+                return entry
+        return None
+
     def must_continue(self) -> bool:
         """True while the run is still running and needs another Candidate."""
         return self._require_run().get("status") == RUNNING
@@ -258,7 +274,9 @@ class EvolutionSession:
 
         Only ``reject`` is recorded here; acceptance flows through
         :meth:`accept` so publication and state change stay atomic. Reject
-        keeps the run ``running`` for the next round.
+        keeps the run ``running`` for the next round. Each begun round is
+        recorded once: a repeated call returns the entry already recorded, so
+        a retry cannot count one Candidate as two rejects.
         """
         if decision != "reject":
             raise ValueError(
@@ -266,6 +284,11 @@ class EvolutionSession:
                 "mark_incomplete() for the other outcomes"
             )
         run = self._require_running()
+        if int(run["round"]) < 1 or not run.get("current_candidate"):
+            raise EvolutionError("No Candidate under evaluation; begin a round first")
+        recorded = self._recorded_round(int(run["round"]))
+        if recorded is not None:
+            return recorded
         entry = {
             "round": int(run["round"]),
             "hypothesis": run.get("current_hypothesis", ""),

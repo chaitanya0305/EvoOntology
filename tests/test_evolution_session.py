@@ -406,3 +406,22 @@ def test_normalize_result_contract():
         normalize_result({"metrics": "bad"})
     with pytest.raises(ValueError):
         normalize_result("not a dict")
+
+
+def test_record_round_counts_one_reject_per_round(tmp_path):
+    ws = _setup(tmp_path)
+    session = EvolutionSession(str(ws))
+    session.start_run("ontology_v0", max_rounds=4)
+    with pytest.raises(EvolutionError, match="begin a round"):
+        session.record_round(decision="reject")
+    session.begin_round("h1", "v0-c1")
+    first = session.record_round(decision="reject", metrics={"ex": 0.5})
+    # A retried call returns the recorded entry instead of a second reject.
+    assert session.record_round(decision="reject") == first
+    assert session.rejected_count() == 1
+    with pytest.raises(EvolutionError):
+        session.mark_incomplete("missing_data")
+    session.begin_round("h2", "v0-c2")
+    session.record_round(decision="reject")
+    assert session.rejected_count() == 2
+    session.mark_incomplete("missing_data")
