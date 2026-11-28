@@ -167,6 +167,7 @@ async def main():
                 messages=agent.export_trace().get("messages", []),
                 final_answer=session.pred_sql,
                 task_status="completed",
+                ontology_version=config.semantic.version,
             )
 
     finally:

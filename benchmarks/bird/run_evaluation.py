@@ -247,6 +247,7 @@ async def run_single_question(question_data: dict, config: ExperimentConfig,
                 messages=trace.get("messages", []),
                 final_answer=pred_sql,
                 task_status="completed",
+                ontology_version=semantic_version,
             )
 
         return (EvalResult(
@@ -277,6 +278,7 @@ async def run_single_question(question_data: dict, config: ExperimentConfig,
                     final_answer="",
                     task_status="failed",
                     errors=[str(e)],
+                    ontology_version=semantic_version,
                 )
             except Exception:
                 pass

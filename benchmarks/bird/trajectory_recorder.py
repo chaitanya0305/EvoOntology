@@ -8,7 +8,7 @@ the two pieces of logic that previously drifted between the two entry points:
 1. a ``task_id`` (``{db_id}_{question_id}`` when an id is available, otherwise
    ``{db_id}_{sha1(question)[:8]}_{uuid[:8]}`` so repeated single-question runs
    are preserved instead of overwriting one another);
-2. the read of the active ontology version and the ``TrajectoryStore`` append.
+2. the ontology version of the run and the ``TrajectoryStore`` append.
 """
 
 from __future__ import annotations
@@ -50,14 +50,16 @@ def record_trajectory(
     final_answer: Any = "",
     task_status: str = "completed",
     errors: Optional[List[Any]] = None,
+    ontology_version: Optional[str] = None,
 ) -> str:
     """Record one task trajectory and return its task id.
 
     ``store_path`` is the semantic workspace root (e.g. ``.evoontology/formula_1``).
-    The active ontology version is read from the workspace; trajectories land in
-    ``<store_path>/trajectories/<task_id>.json``.
+    ``ontology_version`` is the version the agent used (``--semantic-version``);
+    when it is empty, the active version is read from the workspace.
+    Trajectories land in ``<store_path>/trajectories/<task_id>.json``.
     """
-    ontology_version = SemanticStore.active_version(store_path)
+    ontology_version = ontology_version or SemanticStore.active_version(store_path)
     task_id = make_task_id(db_id, question, question_id)
     TrajectoryStore(store_path).append(from_message_trace(
         task_id=task_id,
