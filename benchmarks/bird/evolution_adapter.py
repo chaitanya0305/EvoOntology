@@ -61,6 +61,9 @@ class BirdEvolutionAdapter:
             cmd += ["--db-ids", db_ids]
         cmd += self.extra_args
 
+        # The output directory is shared by every subject by default; only a
+        # results file written by this run may be reported for ``subject``.
+        before = self._result_files(Path(output_dir))
         completed = subprocess.run(cmd, cwd=str(BIRD_DIR), capture_output=True, text=True)
         if completed.returncode != 0:
             raise RuntimeError(
@@ -68,7 +71,7 @@ class BirdEvolutionAdapter:
                 f"(exit {completed.returncode}): {completed.stderr[-500:]}"
             )
 
-        result_file = self._latest_results(Path(output_dir))
+        result_file = self._latest_results(Path(output_dir), before)
         data = json.loads(result_file.read_text(encoding="utf-8"))
         case_results = []
         for entry in data.get("results", []):
@@ -90,11 +93,19 @@ class BirdEvolutionAdapter:
         }
 
     @staticmethod
-    def _latest_results(output_dir: Path) -> Path:
+    def _result_files(output_dir: Path) -> Dict[Path, int]:
+        return {p: p.stat().st_mtime_ns for p in output_dir.rglob("all_results.json")}
+
+    @classmethod
+    def _latest_results(cls, output_dir: Path, before: Dict[Path, int]) -> Path:
         candidates = sorted(
-            output_dir.rglob("all_results.json"),
-            key=lambda p: p.stat().st_mtime,
+            (p for p, mtime in cls._result_files(output_dir).items()
+             if before.get(p) != mtime),
+            key=lambda p: p.stat().st_mtime_ns,
         )
         if not candidates:
-            raise FileNotFoundError(f"No all_results.json found under {output_dir}")
+            raise FileNotFoundError(
+                f"The BIRD evaluation wrote no all_results.json under {output_dir} "
+                "(no question was evaluated)"
+            )
         return candidates[-1]
